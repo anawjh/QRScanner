@@ -182,3 +182,154 @@ public class MainActivity extends AppCompatActivity {
 
     private void addRecord(String content, String remark) {
         String time = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.getDefault()).format(new Date());
+        records.add(0, new ScanRecord(records.size() + 1, content, time, remark));
+        for (int i = 0; i < records.size(); i++) records.get(i).setSeq(records.size() - i);
+        adapter.notifyDataSetChanged();
+        updateCounter();
+        binding.tvEmpty.setVisibility(View.GONE);
+    }
+
+    private void onDeleteRecord(int position) {
+        new AlertDialog.Builder(this)
+            .setTitle("删除记录")
+            .setMessage("确认删除这条扫码记录？")
+            .setPositiveButton("删除", (d, w) -> {
+                records.remove(position);
+                for (int i = 0; i < records.size(); i++) records.get(i).setSeq(records.size() - i);
+                adapter.notifyDataSetChanged();
+                updateCounter();
+                if (records.isEmpty()) binding.tvEmpty.setVisibility(View.VISIBLE);
+            })
+            .setNegativeButton("取消", null).show();
+    }
+
+    private void onEditRemark(int position) {
+        ScanRecord record = records.get(position);
+        View dialogView = LayoutInflater.from(this).inflate(R.layout.dialog_remark, null);
+        EditText etRemark = dialogView.findViewById(R.id.etRemark);
+        etRemark.setText(record.getRemark());
+        new AlertDialog.Builder(this)
+            .setTitle("编辑备注")
+            .setView(dialogView)
+            .setPositiveButton("保存", (d, w) -> {
+                record.setRemark(etRemark.getText().toString().trim());
+                adapter.notifyItemChanged(position);
+            })
+            .setNegativeButton("取消", null).show();
+    }
+
+    private void showClearConfirmDialog() {
+        if (records.isEmpty()) { Toast.makeText(this, "暂无记录", Toast.LENGTH_SHORT).show(); return; }
+        new AlertDialog.Builder(this)
+            .setTitle("清空记录")
+            .setMessage("确认清空全部 " + records.size() + " 条记录？")
+            .setPositiveButton("清空", (d, w) -> {
+                records.clear();
+                adapter.notifyDataSetChanged();
+                updateCounter();
+                binding.tvEmpty.setVisibility(View.VISIBLE);
+            })
+            .setNegativeButton("取消", null).show();
+    }
+
+    private void updateCounter() {
+        binding.tvCounter.setText("已扫: " + records.size() + " 条");
+        binding.btnExport.setEnabled(!records.isEmpty());
+        binding.btnClear.setEnabled(!records.isEmpty());
+    }
+
+    private void exportToExcel() {
+        try {
+            Workbook workbook = new XSSFWorkbook();
+            Sheet sheet = workbook.createSheet("扫码记录");
+            sheet.setColumnWidth(0, 8 * 256);
+            sheet.setColumnWidth(1, 50 * 256);
+            sheet.setColumnWidth(2, 22 * 256);
+            sheet.setColumnWidth(3, 30 * 256);
+
+            CellStyle headerStyle = workbook.createCellStyle();
+            Font headerFont = workbook.createFont();
+            headerFont.setBold(true);
+            headerFont.setColor(IndexedColors.WHITE.getIndex());
+            headerStyle.setFont(headerFont);
+            headerStyle.setFillForegroundColor(IndexedColors.DARK_BLUE.getIndex());
+            headerStyle.setFillPattern(FillPatternType.SOLID_FOREGROUND);
+            headerStyle.setAlignment(HorizontalAlignment.CENTER);
+            headerStyle.setBorderBottom(BorderStyle.THIN);
+            headerStyle.setBorderTop(BorderStyle.THIN);
+            headerStyle.setBorderLeft(BorderStyle.THIN);
+            headerStyle.setBorderRight(BorderStyle.THIN);
+
+            CellStyle evenStyle = workbook.createCellStyle();
+            evenStyle.setFillForegroundColor(IndexedColors.LIGHT_CORNFLOWER_BLUE.getIndex());
+            evenStyle.setFillPattern(FillPatternType.SOLID_FOREGROUND);
+            evenStyle.setBorderBottom(BorderStyle.THIN); evenStyle.setBorderTop(BorderStyle.THIN);
+            evenStyle.setBorderLeft(BorderStyle.THIN); evenStyle.setBorderRight(BorderStyle.THIN);
+
+            CellStyle oddStyle = workbook.createCellStyle();
+            oddStyle.setBorderBottom(BorderStyle.THIN); oddStyle.setBorderTop(BorderStyle.THIN);
+            oddStyle.setBorderLeft(BorderStyle.THIN); oddStyle.setBorderRight(BorderStyle.THIN);
+
+            Row headerRow = sheet.createRow(0);
+            String[] headers = {"序号", "二维码内容", "扫描时间", "备注/标签"};
+            for (int i = 0; i < headers.length; i++) {
+                Cell cell = headerRow.createCell(i);
+                cell.setCellValue(headers[i]);
+                cell.setCellStyle(headerStyle);
+            }
+            headerRow.setHeight((short) 500);
+
+            List<ScanRecord> sorted = new ArrayList<>(records);
+            sorted.sort((a, b) -> a.getSeq() - b.getSeq());
+            for (int i = 0; i < sorted.size(); i++) {
+                ScanRecord r = sorted.get(i);
+                Row row = sheet.createRow(i + 1);
+                CellStyle s = (i % 2 == 0) ? oddStyle : evenStyle;
+                Cell c0 = row.createCell(0); c0.setCellValue(r.getSeq()); c0.setCellStyle(s);
+                Cell c1 = row.createCell(1); c1.setCellValue(r.getContent()); c1.setCellStyle(s);
+                Cell c2 = row.createCell(2); c2.setCellValue(r.getTime()); c2.setCellStyle(s);
+                Cell c3 = row.createCell(3); c3.setCellValue(r.getRemark()); c3.setCellStyle(s);
+                row.setHeight((short) 400);
+            }
+
+            Row summaryRow = sheet.createRow(sorted.size() + 2);
+            summaryRow.createCell(0).setCellValue("导出时间: " +
+                new SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.getDefault()).format(new Date()) +
+                "  |  共 " + sorted.size() + " 条  |  jala批量扫码 13528490965");
+
+            String fileName = "扫码记录_" +
+                new SimpleDateFormat("yyyyMMdd_HHmmss", Locale.getDefault()).format(new Date()) + ".xlsx";
+            File dir = getExternalFilesDir(Environment.DIRECTORY_DOCUMENTS);
+            if (dir == null) dir = getFilesDir();
+            if (!dir.exists()) dir.mkdirs();
+            File file = new File(dir, fileName);
+            try (FileOutputStream fos = new FileOutputStream(file)) { workbook.write(fos); }
+            workbook.close();
+
+            Uri uri = FileProvider.getUriForFile(this, getPackageName() + ".fileprovider", file);
+            new AlertDialog.Builder(this)
+                .setTitle("✅ 导出成功")
+                .setMessage("文件：" + fileName + "\n共 " + records.size() + " 条记录")
+                .setPositiveButton("分享文件", (d, w) -> {
+                    Intent i = new Intent(Intent.ACTION_SEND);
+                    i.setType("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
+                    i.putExtra(Intent.EXTRA_STREAM, uri);
+                    i.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
+                    startActivity(Intent.createChooser(i, "分享 Excel 文件"));
+                })
+                .setNegativeButton("确定", null).show();
+
+        } catch (Exception e) {
+            Toast.makeText(this, "导出失败: " + e.getMessage(), Toast.LENGTH_LONG).show();
+        }
+    }
+
+    @Override
+    public void onRequestPermissionsResult(int requestCode, String[] permissions, int[] grantResults) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults);
+        if (requestCode == CAMERA_PERMISSION_CODE &&
+            grantResults.length > 0 && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
+            startScan();
+        }
+    }
+}
