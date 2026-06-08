@@ -23,12 +23,13 @@ jobs:
       - name: Build APK
         run: cd QRScanner && ./gradlew assembleDebug
 
-      - name: Find APK path
-        run: find . -name "*.apk" -type f
+      - name: Show APK path
+        run: find . -name "app-debug.apk"
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
           name: QRScanner-APK
-          path: "**/*.apk"
+          path: QRScanner/app/build/outputs/apk/debug/app-debug.apk
+          if-no-files-found: warn
           retention-days: 30
