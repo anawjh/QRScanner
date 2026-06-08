@@ -6,7 +6,6 @@
     android:layout_height="match_parent"
     android:background="#F5F7FA">
 
-    <!-- 顶部标题栏 -->
     <LinearLayout
         android:id="@+id/toolbar"
         android:layout_width="0dp"
@@ -25,22 +24,47 @@
         <TextView
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:text="📦 批量扫码工具"
+            android:text="📦 批量扫码工具 | 联系更多开发 13528490965"
             android:textColor="#FFFFFF"
-            android:textSize="20sp"
+            android:textSize="16sp"
             android:textStyle="bold" />
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Bath Scan QR Tool · For more development, contact 13528490965"
+            android:textColor="#BBDEFB"
+            android:textSize="11sp"
+            android:layout_marginTop="2dp" />
 
         <TextView
             android:id="@+id/tvCounter"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:text="已扫: 0 条"
-            android:textColor="#BBDEFB"
-            android:textSize="13sp"
+            android:textColor="#90CAF9"
+            android:textSize="12sp"
             android:layout_marginTop="2dp" />
+
     </LinearLayout>
 
-    <!-- 按钮区域 -->
+    <!-- 模式指示条 -->
+    <TextView
+        android:id="@+id/tvModeBar"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:text="📷 当前模式：摄像头扫码  |  右上角菜单可切换 PDA 模式"
+        android:textSize="12sp"
+        android:textColor="#FFFFFF"
+        android:background="#1976D2"
+        android:paddingStart="16dp"
+        android:paddingEnd="16dp"
+        android:paddingTop="6dp"
+        android:paddingBottom="6dp"
+        app:layout_constraintTop_toBottomOf="@id/toolbar"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintEnd_toEndOf="parent" />
+
     <LinearLayout
         android:id="@+id/btnLayout"
         android:layout_width="0dp"
@@ -48,7 +72,7 @@
         android:orientation="horizontal"
         android:padding="12dp"
         android:gravity="center"
-        app:layout_constraintTop_toBottomOf="@id/toolbar"
+        app:layout_constraintTop_toBottomOf="@id/tvModeBar"
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintEnd_toEndOf="parent">
 
@@ -93,7 +117,6 @@
 
     </LinearLayout>
 
-    <!-- 分割线 + 标题 -->
     <TextView
         android:id="@+id/tvListTitle"
         android:layout_width="0dp"
@@ -108,12 +131,11 @@
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintEnd_toEndOf="parent" />
 
-    <!-- 空状态提示 -->
     <TextView
         android:id="@+id/tvEmpty"
         android:layout_width="0dp"
         android:layout_height="wrap_content"
-        android:text="暂无扫码记录\n点击「开始扫码」开始批量扫描"
+        android:text="暂无扫码记录\n点击「开始扫码」或切换 PDA 模式开始扫描"
         android:textSize="15sp"
         android:textColor="#BDBDBD"
         android:gravity="center"
@@ -123,7 +145,6 @@
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintEnd_toEndOf="parent" />
 
-    <!-- 记录列表 -->
     <androidx.recyclerview.widget.RecyclerView
         android:id="@+id/recyclerView"
         android:layout_width="0dp"
