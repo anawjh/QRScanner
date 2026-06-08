@@ -53,17 +53,17 @@
 
         </LinearLayout>
 
-        <ImageButton
+        <Button
             android:id="@+id/btnMenu"
             android:layout_width="48dp"
             android:layout_height="48dp"
             android:layout_alignParentEnd="true"
             android:layout_centerVertical="true"
             android:background="?attr/selectableItemBackgroundBorderless"
-            android:src="@android:drawable/ic_menu_moreoverflow"
-            android:contentDescription="菜单"
-            android:tint="#FFFFFF"
-            android:scaleType="center" />
+            android:text="⋮"
+            android:textSize="24sp"
+            android:textColor="#FFFFFF"
+            android:contentDescription="菜单" />
 
     </RelativeLayout>
 
