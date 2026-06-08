@@ -9,24 +9,32 @@ import java.util.Date;
 import java.util.List;
 import java.util.Locale;
 
-/** 一个扫码项目 = 一个文件 */
 public class ScanProject {
     public String name;
+    public List<ScanRecord> records;
     public String createdAt;
     public String updatedAt;
-    public List<ScanRecord> records = new ArrayList<>();
 
     public ScanProject(String name) {
         this.name = name;
+        this.records = new ArrayList<>();
         String now = nowStr();
-        createdAt = now;
-        updatedAt = now;
+        this.createdAt = now;
+        this.updatedAt = now;
     }
 
-    // ===== JSON =====
+    public void touch() {
+        updatedAt = nowStr();
+    }
+
+    private static String nowStr() {
+        return new SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.getDefault())
+                .format(new Date());
+    }
+
     public JSONObject toJson() {
-        JSONObject obj = new JSONObject();
         try {
+            JSONObject obj = new JSONObject();
             obj.put("name", name);
             obj.put("createdAt", createdAt);
             obj.put("updatedAt", updatedAt);
@@ -40,8 +48,10 @@ public class ScanProject {
                 arr.put(ro);
             }
             obj.put("records", arr);
-        } catch (Exception ignored) {}
-        return obj;
+            return obj;
+        } catch (Exception e) {
+            return new JSONObject();
+        }
     }
 
     public static ScanProject fromJson(JSONObject obj) {
@@ -50,28 +60,19 @@ public class ScanProject {
         p.updatedAt = obj.optString("updatedAt", nowStr());
         JSONArray arr = obj.optJSONArray("records");
         if (arr != null) {
+            p.records.clear();
             for (int i = 0; i < arr.length(); i++) {
                 JSONObject ro = arr.optJSONObject(i);
                 if (ro != null) {
-                    ScanRecord r = new ScanRecord(
-                        ro.optInt("seq"),
-                        ro.optString("content", ""),
-                        ro.optString("time", ""),
-                        ro.optString("remark", "")
-                    );
-                    p.records.add(r);
+                    p.records.add(new ScanRecord(
+                            ro.optInt("seq"),
+                            ro.optString("content", ""),
+                            ro.optString("time", ""),
+                            ro.optString("remark", "")
+                    ));
                 }
             }
         }
         return p;
-    }
-
-    public void touch() {
-        updatedAt = nowStr();
-    }
-
-    public static String nowStr() {
-        return new SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.getDefault())
-                .format(new Date());
     }
 }
