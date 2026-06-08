@@ -352,3 +352,16 @@ public class MainActivity extends AppCompatActivity {
 
         } catch (Exception e) {
             Toast.makeText(this, "导出失败: " +
+e.getMessage(), Toast.LENGTH_LONG).show();
+        }
+    }
+
+    @Override
+    public void onRequestPermissionsResult(int requestCode, String[] permissions, int[] grantResults) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults);
+        if (requestCode == CAMERA_PERMISSION_CODE &&
+            grantResults.length > 0 && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
+            startScan();
+        }
+    }
+}
