@@ -6,12 +6,15 @@ import android.content.pm.PackageManager;
 import android.net.Uri;
 import android.os.Bundle;
 import android.os.Environment;
+import android.os.Handler;
+import android.os.Looper;
 import android.view.KeyEvent;
 import android.view.LayoutInflater;
 import android.view.Menu;
-import android.view.MenuItem;
 import android.view.View;
+import android.widget.ArrayAdapter;
 import android.widget.EditText;
+import android.widget.ListView;
 import android.widget.PopupMenu;
 import android.widget.Toast;
 
@@ -49,6 +52,17 @@ public class MainActivity extends AppCompatActivity {
     private StringBuilder pdaBuffer = new StringBuilder();
     private long lastKeyTime = 0;
 
+    // ===== 项目管理 =====
+    private ProjectManager projectManager;
+    private ScanProject currentProject;
+
+    // ===== PDA 增强 =====
+    private final Handler pdaHandler = new Handler(Looper.getMainLooper());
+    private final Runnable pdaAutoSubmit = () -> {
+        String s = pdaBuffer.toString().trim();
+        if (!s.isEmpty()) { addRecord(s, ""); pdaBuffer.setLength(0); }
+    };
+
     private final androidx.activity.result.ActivityResultLauncher<ScanOptions> scanLauncher =
         registerForActivityResult(new ScanContract(), this::handleScanResult);
 
@@ -57,11 +71,19 @@ public class MainActivity extends AppCompatActivity {
         super.onCreate(savedInstanceState);
         binding = ActivityMainBinding.inflate(getLayoutInflater());
         setContentView(binding.getRoot());
+        binding.getRoot().setFocusable(true);
+        binding.getRoot().setFocusableInTouchMode(true);
+
+        projectManager = new ProjectManager(this);
+        currentProject = projectManager.createNew();
+        records = currentProject.records;
+        reSequence();
 
         setupRecyclerView();
         setupButtons();
         updateCounter();
         updateModeIndicator();
+        updateProjectName();
     }
 
     @Override
@@ -88,11 +110,16 @@ public class MainActivity extends AppCompatActivity {
 
         binding.btnMenu.setOnClickListener(v -> {
             PopupMenu popup = new PopupMenu(this, v);
+            popup.getMenu().add(0, 10, 0, "📁 新建项目");
+            popup.getMenu().add(0, 11, 0, "📂 打开项目");
+            popup.getMenu().add(0, 99, 0, "──────────");
             popup.getMenu().add(0, 1, 0, "📷 摄像头扫码模式");
             popup.getMenu().add(0, 2, 0, "🔫 PDA激光扫码模式");
             popup.getMenu().add(0, 3, 0, "📞 联系开发者");
             popup.setOnMenuItemClickListener(item -> {
                 switch (item.getItemId()) {
+                    case 10: showNewProjectDialog(); return true;
+                    case 11: showOpenProjectDialog(); return true;
                     case 1:
                         isPdaMode = false;
                         updateModeIndicator();
@@ -113,6 +140,103 @@ public class MainActivity extends AppCompatActivity {
         });
     }
 
+    // ======================== 项目管理 ========================
+
+    private void updateProjectName() {
+        String name = currentProject != null ? currentProject.name : "未命名";
+        binding.tvProjectName.setText("📁 " + name);
+    }
+
+    private void showNewProjectDialog() {
+        AlertDialog.Builder builder = new AlertDialog.Builder(this);
+        builder.setTitle("📁 新建项目");
+
+        EditText input = new EditText(this);
+        input.setHint("输入项目名称（留空自动生成）");
+        builder.setView(input);
+
+        builder.setPositiveButton("创建", (d, w) -> {
+            String name = input.getText().toString().trim();
+            if (name.isEmpty()) {
+                currentProject = projectManager.createNew();
+            } else {
+                currentProject = new ScanProject(name);
+                records = currentProject.records;
+                projectManager.save(currentProject);
+            }
+            records = currentProject.records;
+            adapter = new ScanRecordAdapter(records, this::onDeleteRecord, this::onEditRemark);
+            binding.recyclerView.setAdapter(adapter);
+            reSequence();
+            updateCounter();
+            updateProjectName();
+            binding.tvEmpty.setVisibility(records.isEmpty() ? View.VISIBLE : View.GONE);
+            Toast.makeText(this, "已创建项目: " + currentProject.name, Toast.LENGTH_SHORT).show();
+            if (isPdaMode) binding.getRoot().requestFocus();
+        });
+        builder.setNegativeButton("取消", null);
+        AlertDialog dlg = builder.show();
+        dlg.setOnDismissListener(d -> { if (isPdaMode) binding.getRoot().requestFocus(); });
+    }
+
+    private void showOpenProjectDialog() {
+        List<String> projects = projectManager.listProjects();
+        if (projects.isEmpty()) {
+            Toast.makeText(this, "暂无保存的项目", Toast.LENGTH_SHORT).show();
+            return;
+        }
+
+        AlertDialog.Builder builder = new AlertDialog.Builder(this);
+        builder.setTitle("📂 打开项目");
+
+        View view = getLayoutInflater().inflate(R.layout.dialog_project_list, null);
+        ListView lv = view.findViewById(R.id.lvProjects);
+        ArrayAdapter<String> adapter2 = new ArrayAdapter<>(this,
+                android.R.layout.simple_list_item_1, projects);
+        lv.setAdapter(adapter2);
+
+        builder.setView(view);
+        builder.setNegativeButton("取消", null);
+        AlertDialog dialog = builder.show();
+        dialog.setOnDismissListener(d -> { if (isPdaMode) binding.getRoot().requestFocus(); });
+
+        lv.setOnItemClickListener((parent, v, pos, id) -> {
+            String name = projects.get(pos);
+            ScanProject p = projectManager.load(name);
+            if (p != null) {
+                currentProject = p;
+                records = currentProject.records;
+                adapter = new ScanRecordAdapter(records, MainActivity.this::onDeleteRecord,
+                        MainActivity.this::onEditRemark);
+                binding.recyclerView.setAdapter(adapter);
+                reSequence();
+                updateCounter();
+                updateProjectName();
+                binding.tvEmpty.setVisibility(records.isEmpty() ? View.VISIBLE : View.GONE);
+                Toast.makeText(MainActivity.this, "已打开: " + name, Toast.LENGTH_SHORT).show();
+            } else {
+                Toast.makeText(MainActivity.this, "打开失败", Toast.LENGTH_SHORT).show();
+            }
+            dialog.dismiss();
+            if (isPdaMode) binding.getRoot().requestFocus();
+        });
+    }
+
+    private void saveCurrentProject() {
+        if (currentProject != null) {
+            projectManager.save(currentProject);
+        }
+    }
+
+    private void reSequence() {
+        for (int i = 0; i < records.size(); i++) {
+            records.get(i).setSeq(records.size() - i);
+        }
+        saveCurrentProject();
+    }
+
+    // ======================== PDA 扫码核心 ========================
+
     private void updateModeIndicator() {
         if (isPdaMode) {
             binding.btnScan.setText("🔫 PDA模式已启动");
@@ -129,7 +253,8 @@ public class MainActivity extends AppCompatActivity {
         new AlertDialog.Builder(this)
             .setTitle("🔫 PDA激光扫码模式")
             .setMessage("PDA模式已启动！\n\n使用方法：\n• 直接按 PDA 扫码键扫描条码\n• 数据会自动录入，无需点击任何按钮\n• 支持连续快速扫码\n\n提示：请确保 App 界面处于前台运行状态")
-            .setPositiveButton("知道了", null)
+            .setPositiveButton("知道了", (d, w) -> binding.getRoot().requestFocus())
+            .setOnDismissListener(d -> binding.getRoot().requestFocus())
             .show();
     }
 
@@ -147,30 +272,97 @@ public class MainActivity extends AppCompatActivity {
     }
 
     @Override
-    public boolean onKeyDown(int keyCode, KeyEvent event) {
-        if (!isPdaMode) return super.onKeyDown(keyCode, event);
+    public boolean dispatchKeyEvent(KeyEvent event) {
+        if (!isPdaMode) return super.dispatchKeyEvent(event);
 
-        long currentTime = System.currentTimeMillis();
-        if (currentTime - lastKeyTime > 500) {
-            pdaBuffer.setLength(0);
+        // ACTION_MULTIPLE — 多数 PDA 扫码枪通过此方式一次性注入完整条码
+        if (event.getAction() == KeyEvent.ACTION_MULTIPLE) {
+            String chars = event.getCharacters();
+            if (chars != null && chars.length() > 0) {
+                addRecord(chars, "");
+                return true;
+            }
         }
-        lastKeyTime = currentTime;
 
-        if (keyCode == KeyEvent.KEYCODE_ENTER || keyCode == KeyEvent.KEYCODE_NUMPAD_ENTER) {
-            String scanned = pdaBuffer.toString().trim();
-            if (!scanned.isEmpty()) {
-                addRecord(scanned, "");
+        if (event.getAction() == KeyEvent.ACTION_DOWN) {
+            int keyCode = event.getKeyCode();
+            long now = System.currentTimeMillis();
+
+            // 超时 → 新扫描，自动提交上一段（无终结符的 PDA）
+            if (now - lastKeyTime > 400 && pdaBuffer.length() > 0) {
+                String s = pdaBuffer.toString().trim();
+                if (s.length() >= 3) { addRecord(s, ""); }
                 pdaBuffer.setLength(0);
             }
-            return true;
-        }
+            lastKeyTime = now;
+            pdaHandler.removeCallbacks(pdaAutoSubmit);
+            pdaHandler.postDelayed(pdaAutoSubmit, 300);
 
-        char c = (char) event.getUnicodeChar();
-        if (c != 0) {
-            pdaBuffer.append(c);
+            // 终结符
+            if (keyCode == KeyEvent.KEYCODE_ENTER ||
+                keyCode == KeyEvent.KEYCODE_NUMPAD_ENTER ||
+                keyCode == KeyEvent.KEYCODE_TAB) {
+                String s = pdaBuffer.toString().trim();
+                if (!s.isEmpty()) { addRecord(s, ""); pdaBuffer.setLength(0); }
+                pdaHandler.removeCallbacks(pdaAutoSubmit);
+                return true;
+            }
+
+            // 退格
+            if (keyCode == KeyEvent.KEYCODE_DEL && pdaBuffer.length() > 0) {
+                pdaBuffer.deleteCharAt(pdaBuffer.length() - 1);
+                return true;
+            }
+
+            // 数字小键盘
+            if (keyCode >= KeyEvent.KEYCODE_NUMPAD_0 && keyCode <= KeyEvent.KEYCODE_NUMPAD_9) {
+                pdaBuffer.append((char) ('0' + (keyCode - KeyEvent.KEYCODE_NUMPAD_0)));
+                return true;
+            }
+
+            // 特殊符号
+            if (keyCode == KeyEvent.KEYCODE_STAR)       { pdaBuffer.append('*'); return true; }
+            if (keyCode == KeyEvent.KEYCODE_POUND)       { pdaBuffer.append('#'); return true; }
+            if (keyCode == KeyEvent.KEYCODE_MINUS)       { pdaBuffer.append('-'); return true; }
+            if (keyCode == KeyEvent.KEYCODE_PERIOD)      { pdaBuffer.append('.'); return true; }
+            if (keyCode == KeyEvent.KEYCODE_COMMA)       { pdaBuffer.append(','); return true; }
+            if (keyCode == KeyEvent.KEYCODE_SLASH)       { pdaBuffer.append('/'); return true; }
+
+            // 普通可打印字符
+            int meta = event.getMetaState();
+            char c = (char) event.getUnicodeChar(meta);
+            if (c == 0) c = (char) event.getUnicodeChar();
+            if (c == 0) c = (char) event.getDisplayLabel();
+            if (c >= 32 && c < 127) { pdaBuffer.append(c); return true; }
         }
-        return true;
+        return super.dispatchKeyEvent(event);
     }
+
+    /** onKeyDown 备用 — 部分设备不走 dispatchKeyEvent */
+    @Override
+    public boolean onKeyDown(int keyCode, KeyEvent event) {
+        if (!isPdaMode) return super.onKeyDown(keyCode, event);
+        if (event.getAction() == KeyEvent.ACTION_DOWN) {
+            char c = (char) event.getUnicodeChar();
+            if (c == 0) c = (char) event.getDisplayLabel();
+            if (c >= 32 && c < 127) {
+                long now = System.currentTimeMillis();
+                if (now - lastKeyTime > 400 && pdaBuffer.length() > 0) {
+                    String s = pdaBuffer.toString().trim();
+                    if (s.length() >= 3) { addRecord(s, ""); }
+                    pdaBuffer.setLength(0);
+                }
+                lastKeyTime = now;
+                pdaBuffer.append(c);
+                pdaHandler.removeCallbacks(pdaAutoSubmit);
+                pdaHandler.postDelayed(pdaAutoSubmit, 300);
+                return true;
+            }
+        }
+        return super.onKeyDown(keyCode, event);
+    }
+
+    // ======================== 摄像头扫码 ========================
 
     private void checkCameraAndScan() {
         if (ContextCompat.checkSelfPermission(this, Manifest.permission.CAMERA)
@@ -198,16 +390,19 @@ public class MainActivity extends AppCompatActivity {
                 binding.recyclerView.postDelayed(this::startScan, 300);
             }
         }
+        if (isPdaMode) {
+            binding.getRoot().post(() -> binding.getRoot().requestFocus());
+        }
     }
+
+    // ======================== 记录操作 ========================
 
     private void addRecord(String content, String remark) {
         String time = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.getDefault())
                 .format(new Date());
         ScanRecord record = new ScanRecord(records.size() + 1, content, time, remark);
         records.add(0, record);
-        for (int i = 0; i < records.size(); i++) {
-            records.get(i).setSeq(records.size() - i);
-        }
+        reSequence();
         adapter.notifyDataSetChanged();
         updateCounter();
         binding.tvEmpty.setVisibility(View.GONE);
@@ -219,9 +414,7 @@ public class MainActivity extends AppCompatActivity {
             .setMessage("确认删除这条扫码记录？")
             .setPositiveButton("删除", (d, w) -> {
                 records.remove(position);
-                for (int i = 0; i < records.size(); i++) {
-                    records.get(i).setSeq(records.size() - i);
-                }
+                reSequence();
                 adapter.notifyDataSetChanged();
                 updateCounter();
                 if (records.isEmpty()) binding.tvEmpty.setVisibility(View.VISIBLE);
@@ -241,6 +434,7 @@ public class MainActivity extends AppCompatActivity {
             .setPositiveButton("保存", (d, w) -> {
                 record.setRemark(etRemark.getText().toString().trim());
                 adapter.notifyItemChanged(position);
+                saveCurrentProject();
             })
             .setNegativeButton("取消", null)
             .show();
@@ -253,6 +447,7 @@ public class MainActivity extends AppCompatActivity {
             .setMessage("确认清空全部 " + records.size() + " 条记录？")
             .setPositiveButton("清空", (d, w) -> {
                 records.clear();
+                reSequence();
                 adapter.notifyDataSetChanged();
                 updateCounter();
                 binding.tvEmpty.setVisibility(View.VISIBLE);
@@ -266,6 +461,8 @@ public class MainActivity extends AppCompatActivity {
         binding.btnExport.setEnabled(!records.isEmpty());
         binding.btnClear.setEnabled(!records.isEmpty());
     }
+
+    // ======================== 导出 Excel ========================
 
     private void exportToExcel() {
         try {
@@ -321,13 +518,11 @@ public class MainActivity extends AppCompatActivity {
                 row.setHeight((short) 400);
             }
 
-            Row summaryRow = sheet.createRow(sorted.size() + 2);
-            Cell sc = summaryRow.createCell(0);
-            sc.setCellValue("导出时间: " + new SimpleDateFormat("yyyy-MM-dd HH:mm:ss",
-                Locale.getDefault()).format(new Date()) + "  |  共 " + sorted.size() + " 条  |  jala批量扫码 13528490965");
-
-            String fileName = "扫码记录_" + new SimpleDateFormat("yyyyMMdd_HHmmss",
-                Locale.getDefault()).format(new Date()) + ".xlsx";
+            String safeName = currentProject != null
+                ? currentProject.name.replaceAll("[\\\\/:*?\"<>|]", "_")
+                : "扫码记录";
+            String fileName = safeName + "_" +
+                new SimpleDateFormat("yyyyMMdd_HHmmss", Locale.getDefault()).format(new Date()) + ".xlsx";
             File dir = getExternalFilesDir(Environment.DIRECTORY_DOCUMENTS);
             if (dir == null) dir = getFilesDir();
             if (!dir.exists()) dir.mkdirs();
@@ -338,7 +533,8 @@ public class MainActivity extends AppCompatActivity {
             Uri uri = FileProvider.getUriForFile(this, getPackageName() + ".fileprovider", file);
             new AlertDialog.Builder(this)
                 .setTitle("✅ 导出成功")
-                .setMessage("文件：" + fileName + "\n共 " + records.size() + " 条记录")
+                .setMessage("项目：" + (currentProject != null ? currentProject.name : "") +
+                    "\n文件：" + fileName + "\n共 " + records.size() + " 条记录")
                 .setPositiveButton("分享文件", (d, w) -> {
                     Intent shareIntent = new Intent(Intent.ACTION_SEND);
                     shareIntent.setType("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
@@ -352,6 +548,20 @@ public class MainActivity extends AppCompatActivity {
         } catch (Exception e) {
             Toast.makeText(this, "导出失败: " + e.getMessage(), Toast.LENGTH_LONG).show();
         }
+    }
+
+    @Override
+    protected void onResume() {
+        super.onResume();
+        if (isPdaMode) {
+            binding.getRoot().requestFocus();
+        }
+    }
+
+    @Override
+    protected void onPause() {
+        super.onPause();
+        pdaHandler.removeCallbacks(pdaAutoSubmit);
     }
 
     @Override
