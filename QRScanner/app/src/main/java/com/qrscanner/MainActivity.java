@@ -172,7 +172,32 @@ public class MainActivity extends AppCompatActivity {
         binding.btnExport.setOnClickListener(v -> exportToExcel());
         binding.btnClear.setOnClickListener(v -> showClearConfirmDialog());
     }
-
+    binding.btnMenu.setOnClickListener(v -> {
+        android.widget.PopupMenu popup = new android.widget.PopupMenu(this, v);
+        popup.getMenu().add(0, 1, 0, "📷 摄像头扫码模式");
+        popup.getMenu().add(0, 2, 0, "🔫 PDA激光扫码模式");
+        popup.getMenu().add(0, 3, 0, "📞 联系开发者");
+        popup.setOnMenuItemClickListener(item -> {
+            switch (item.getItemId()) {
+                case 1:
+                    isPdaMode = false;
+                    updateModeIndicator();
+                    android.widget.Toast.makeText(this, "已切换：摄像头扫码模式", android.widget.Toast.LENGTH_SHORT).show();
+                    return true;
+                case 2:
+                    isPdaMode = true;
+                    updateModeIndicator();
+                    showPdaModeGuide();
+                    return true;
+                case 3:
+                    showContactDialog();
+                    return true;
+            }
+            return false;
+        });
+        popup.show();
+    });
+  
     private void checkCameraAndScan() {
         if (ContextCompat.checkSelfPermission(this, Manifest.permission.CAMERA)
                 != PackageManager.PERMISSION_GRANTED) {
