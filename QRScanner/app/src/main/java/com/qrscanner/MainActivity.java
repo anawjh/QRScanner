@@ -12,6 +12,7 @@ import android.view.Menu;
 import android.view.MenuItem;
 import android.view.View;
 import android.widget.EditText;
+import android.widget.PopupMenu;
 import android.widget.Toast;
 
 import androidx.appcompat.app.AlertDialog;
@@ -44,7 +45,6 @@ public class MainActivity extends AppCompatActivity {
     private List<ScanRecord> records = new ArrayList<>();
     private static final int CAMERA_PERMISSION_CODE = 100;
 
-    // 扫码模式：false=摄像头，true=PDA硬件扫码枪
     private boolean isPdaMode = false;
     private StringBuilder pdaBuffer = new StringBuilder();
     private long lastKeyTime = 0;
@@ -66,30 +66,51 @@ public class MainActivity extends AppCompatActivity {
 
     @Override
     public boolean onCreateOptionsMenu(Menu menu) {
-        menu.add(0, 1, 0, "📷 摄像头扫码模式");
-        menu.add(0, 2, 0, "🔫 PDA激光扫码模式");
-        menu.add(0, 3, 0, "📞 联系开发者");
         return true;
     }
 
-    @Override
-    public boolean onOptionsItemSelected(MenuItem item) {
-        switch (item.getItemId()) {
-            case 1:
-                isPdaMode = false;
-                updateModeIndicator();
-                Toast.makeText(this, "已切换：摄像头扫码模式", Toast.LENGTH_SHORT).show();
-                return true;
-            case 2:
-                isPdaMode = true;
-                updateModeIndicator();
-                showPdaModeGuide();
-                return true;
-            case 3:
-                showContactDialog();
-                return true;
-        }
-        return super.onOptionsItemSelected(item);
+    private void setupRecyclerView() {
+        adapter = new ScanRecordAdapter(records, this::onDeleteRecord, this::onEditRemark);
+        binding.recyclerView.setLayoutManager(new LinearLayoutManager(this));
+        binding.recyclerView.setAdapter(adapter);
+    }
+
+    private void setupButtons() {
+        binding.btnScan.setOnClickListener(v -> {
+            if (isPdaMode) {
+                Toast.makeText(this, "PDA模式：直接按扫码键即可", Toast.LENGTH_SHORT).show();
+            } else {
+                checkCameraAndScan();
+            }
+        });
+        binding.btnExport.setOnClickListener(v -> exportToExcel());
+        binding.btnClear.setOnClickListener(v -> showClearConfirmDialog());
+
+        binding.btnMenu.setOnClickListener(v -> {
+            PopupMenu popup = new PopupMenu(this, v);
+            popup.getMenu().add(0, 1, 0, "📷 摄像头扫码模式");
+            popup.getMenu().add(0, 2, 0, "🔫 PDA激光扫码模式");
+            popup.getMenu().add(0, 3, 0, "📞 联系开发者");
+            popup.setOnMenuItemClickListener(item -> {
+                switch (item.getItemId()) {
+                    case 1:
+                        isPdaMode = false;
+                        updateModeIndicator();
+                        Toast.makeText(this, "已切换：摄像头扫码模式", Toast.LENGTH_SHORT).show();
+                        return true;
+                    case 2:
+                        isPdaMode = true;
+                        updateModeIndicator();
+                        showPdaModeGuide();
+                        return true;
+                    case 3:
+                        showContactDialog();
+                        return true;
+                }
+                return false;
+            });
+            popup.show();
+        });
     }
 
     private void updateModeIndicator() {
@@ -125,19 +146,16 @@ public class MainActivity extends AppCompatActivity {
             .show();
     }
 
-    // PDA 硬件扫码枪通过 KeyEvent 输入数据
     @Override
     public boolean onKeyDown(int keyCode, KeyEvent event) {
         if (!isPdaMode) return super.onKeyDown(keyCode, event);
 
         long currentTime = System.currentTimeMillis();
-        // 超过500ms没有输入，清空缓冲区（新一次扫码）
         if (currentTime - lastKeyTime > 500) {
             pdaBuffer.setLength(0);
         }
         lastKeyTime = currentTime;
 
-        // Enter键 = 扫码完成
         if (keyCode == KeyEvent.KEYCODE_ENTER || keyCode == KeyEvent.KEYCODE_NUMPAD_ENTER) {
             String scanned = pdaBuffer.toString().trim();
             if (!scanned.isEmpty()) {
@@ -147,7 +165,6 @@ public class MainActivity extends AppCompatActivity {
             return true;
         }
 
-        // 普通字符累积
         char c = (char) event.getUnicodeChar();
         if (c != 0) {
             pdaBuffer.append(c);
@@ -155,49 +172,6 @@ public class MainActivity extends AppCompatActivity {
         return true;
     }
 
-    private void setupRecyclerView() {
-        adapter = new ScanRecordAdapter(records, this::onDeleteRecord, this::onEditRemark);
-        binding.recyclerView.setLayoutManager(new LinearLayoutManager(this));
-        binding.recyclerView.setAdapter(adapter);
-    }
-
-    private void setupButtons() {
-        binding.btnScan.setOnClickListener(v -> {
-            if (isPdaMode) {
-                Toast.makeText(this, "PDA模式：直接按扫码键即可", Toast.LENGTH_SHORT).show();
-            } else {
-                checkCameraAndScan();
-            }
-        });
-        binding.btnExport.setOnClickListener(v -> exportToExcel());
-        binding.btnClear.setOnClickListener(v -> showClearConfirmDialog());
-    }
-    binding.btnMenu.setOnClickListener(v -> {
-        android.widget.PopupMenu popup = new android.widget.PopupMenu(this, v);
-        popup.getMenu().add(0, 1, 0, "📷 摄像头扫码模式");
-        popup.getMenu().add(0, 2, 0, "🔫 PDA激光扫码模式");
-        popup.getMenu().add(0, 3, 0, "📞 联系开发者");
-        popup.setOnMenuItemClickListener(item -> {
-            switch (item.getItemId()) {
-                case 1:
-                    isPdaMode = false;
-                    updateModeIndicator();
-                    android.widget.Toast.makeText(this, "已切换：摄像头扫码模式", android.widget.Toast.LENGTH_SHORT).show();
-                    return true;
-                case 2:
-                    isPdaMode = true;
-                    updateModeIndicator();
-                    showPdaModeGuide();
-                    return true;
-                case 3:
-                    showContactDialog();
-                    return true;
-            }
-            return false;
-        });
-        popup.show();
-    });
-  
     private void checkCameraAndScan() {
         if (ContextCompat.checkSelfPermission(this, Manifest.permission.CAMERA)
                 != PackageManager.PERMISSION_GRANTED) {
@@ -376,8 +350,7 @@ public class MainActivity extends AppCompatActivity {
                 .show();
 
         } catch (Exception e) {
-            Toast.makeText(this, "导出失败: " +
-e.getMessage(), Toast.LENGTH_LONG).show();
+            Toast.makeText(this, "导出失败: " + e.getMessage(), Toast.LENGTH_LONG).show();
         }
     }
 
