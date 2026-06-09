@@ -23,9 +23,18 @@ jobs:
       - name: Build APK
         run: cd QRScanner && ./gradlew assembleDebug
 
+      - name: List all APK files
+        run: find / -name "*.apk" 2>/dev/null || true
+
+      - name: Copy APK to workspace
+        run: |
+          mkdir -p output
+          find . -name "app-debug.apk" -exec cp {} output/ \; 2>/dev/null || true
+          ls -la output/
+
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
           name: QRScanner-APK
-          path: "**/app-debug.apk"
+          path: output/app-debug.apk
           retention-days: 30
