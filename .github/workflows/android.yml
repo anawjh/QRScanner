@@ -23,13 +23,9 @@ jobs:
       - name: Build APK
         run: cd QRScanner && ./gradlew assembleDebug
 
-      - name: Find APK
-        run: find $GITHUB_WORKSPACE -name "*.apk" -type f 2>/dev/null
-
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
           name: QRScanner-APK
-          path: ${{ github.workspace }}/QRScanner/app/build/outputs/apk/debug/app-debug.apk
-          if-no-files-found: warn
+          path: QRScanner/QRScanner/app/build/outputs/apk/debug/app-debug.apk
           retention-days: 30
