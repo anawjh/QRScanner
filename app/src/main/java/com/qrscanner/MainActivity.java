@@ -244,6 +244,8 @@ public class MainActivity extends AppCompatActivity {
             String chars = event.getCharacters();
             if (chars != null && chars.length() > 0) {
                 addRecord(chars, "");
+                pdaBuffer.setLength(0);
+                lastKeyTime = System.currentTimeMillis();
                 return true;
             }
         }
@@ -252,7 +254,7 @@ public class MainActivity extends AppCompatActivity {
             int keyCode = event.getKeyCode();
             long now = System.currentTimeMillis();
 
-            if (now - lastKeyTime > 400 && pdaBuffer.length() > 0) {
+            if (now - lastKeyTime > 500 && pdaBuffer.length() > 0) {
                 String s = pdaBuffer.toString().trim();
                 if (s.length() >= 3) { addRecord(s, ""); }
                 pdaBuffer.setLength(0);
