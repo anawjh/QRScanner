@@ -228,7 +228,7 @@ public class MainActivity extends AppCompatActivity {
     private void showContactDialog() {
         new AlertDialog.Builder(this)
             .setTitle("联系开发者")
-            .setMessage("jala批量扫码\n\n📱 联系电话：13528490965\n\n如需定制开发扫码项目，欢迎联系！")
+            .setMessage("jala批量扫码\n\n📱 联系电话：13528490965\n\n如需定制开发项目，欢迎联系！")
             .setPositiveButton("拨打电话", (d, w) -> {
                 Intent intent = new Intent(Intent.ACTION_DIAL,
                     Uri.parse("tel:13528490965"));
@@ -240,7 +240,6 @@ public class MainActivity extends AppCompatActivity {
 
     @Override
     public boolean dispatchKeyEvent(KeyEvent event) {
-        // ACTION_MULTIPLE — 多数 PDA 扫码枪通过此方式一次性注入完整条码
         if (event.getAction() == KeyEvent.ACTION_MULTIPLE) {
             String chars = event.getCharacters();
             if (chars != null && chars.length() > 0) {
@@ -253,7 +252,6 @@ public class MainActivity extends AppCompatActivity {
             int keyCode = event.getKeyCode();
             long now = System.currentTimeMillis();
 
-            // 超时 → 新扫描，自动提交上一段（无终结符的 PDA）
             if (now - lastKeyTime > 400 && pdaBuffer.length() > 0) {
                 String s = pdaBuffer.toString().trim();
                 if (s.length() >= 3) { addRecord(s, ""); }
@@ -263,7 +261,6 @@ public class MainActivity extends AppCompatActivity {
             pdaHandler.removeCallbacks(pdaAutoSubmit);
             pdaHandler.postDelayed(pdaAutoSubmit, 300);
 
-            // 终结符
             if (keyCode == KeyEvent.KEYCODE_ENTER ||
                 keyCode == KeyEvent.KEYCODE_NUMPAD_ENTER ||
                 keyCode == KeyEvent.KEYCODE_TAB) {
@@ -273,19 +270,16 @@ public class MainActivity extends AppCompatActivity {
                 return true;
             }
 
-            // 退格
             if (keyCode == KeyEvent.KEYCODE_DEL && pdaBuffer.length() > 0) {
                 pdaBuffer.deleteCharAt(pdaBuffer.length() - 1);
                 return true;
             }
 
-            // 数字小键盘
             if (keyCode >= KeyEvent.KEYCODE_NUMPAD_0 && keyCode <= KeyEvent.KEYCODE_NUMPAD_9) {
                 pdaBuffer.append((char) ('0' + (keyCode - KeyEvent.KEYCODE_NUMPAD_0)));
                 return true;
             }
 
-            // 特殊符号
             if (keyCode == KeyEvent.KEYCODE_STAR)       { pdaBuffer.append('*'); return true; }
             if (keyCode == KeyEvent.KEYCODE_POUND)       { pdaBuffer.append('#'); return true; }
             if (keyCode == KeyEvent.KEYCODE_MINUS)       { pdaBuffer.append('-'); return true; }
@@ -293,7 +287,6 @@ public class MainActivity extends AppCompatActivity {
             if (keyCode == KeyEvent.KEYCODE_COMMA)       { pdaBuffer.append(','); return true; }
             if (keyCode == KeyEvent.KEYCODE_SLASH)       { pdaBuffer.append('/'); return true; }
 
-            // 普通可打印字符
             int meta = event.getMetaState();
             char c = (char) event.getUnicodeChar(meta);
             if (c == 0) c = (char) event.getUnicodeChar();
@@ -490,5 +483,13 @@ public class MainActivity extends AppCompatActivity {
     protected void onPause() {
         super.onPause();
         pdaHandler.removeCallbacks(pdaAutoSubmit);
+    }
+
+    @Override
+    public void onWindowFocusChanged(boolean hasFocus) {
+        super.onWindowFocusChanged(hasFocus);
+        if (hasFocus) {
+            binding.getRoot().requestFocus();
+        }
     }
 }
