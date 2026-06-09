@@ -259,7 +259,7 @@ public class MainActivity extends AppCompatActivity {
             }
             lastKeyTime = now;
             pdaHandler.removeCallbacks(pdaAutoSubmit);
-            pdaHandler.postDelayed(pdaAutoSubmit, 300);
+            pdaHandler.postDelayed(pdaAutoSubmit, 500);
 
             if (keyCode == KeyEvent.KEYCODE_ENTER ||
                 keyCode == KeyEvent.KEYCODE_NUMPAD_ENTER ||
@@ -303,7 +303,7 @@ public class MainActivity extends AppCompatActivity {
             if (c == 0) c = (char) event.getDisplayLabel();
             if (c >= 32 && c < 127) {
                 long now = System.currentTimeMillis();
-                if (now - lastKeyTime > 400 && pdaBuffer.length() > 0) {
+                if (now - lastKeyTime > 500 && pdaBuffer.length() > 0) {
                     String s = pdaBuffer.toString().trim();
                     if (s.length() >= 3) { addRecord(s, ""); }
                     pdaBuffer.setLength(0);
@@ -311,7 +311,7 @@ public class MainActivity extends AppCompatActivity {
                 lastKeyTime = now;
                 pdaBuffer.append(c);
                 pdaHandler.removeCallbacks(pdaAutoSubmit);
-                pdaHandler.postDelayed(pdaAutoSubmit, 300);
+                pdaHandler.postDelayed(pdaAutoSubmit, 500);
                 return true;
             }
         }
