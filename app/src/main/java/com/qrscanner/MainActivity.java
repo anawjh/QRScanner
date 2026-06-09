@@ -453,7 +453,7 @@ public class MainActivity extends AppCompatActivity {
                 : "扫码记录";
             String fileName = safeName + "_" +
                 new SimpleDateFormat("yyyyMMdd_HHmmss", Locale.getDefault()).format(new Date()) + ".xlsx";
-            File dir = getExternalFilesDir(Environment.DIRECTORY_DOCUMENTS);
+            File dir = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS);
             if (dir == null) dir = getFilesDir();
             if (!dir.exists()) dir.mkdirs();
             File file = new File(dir, fileName);
